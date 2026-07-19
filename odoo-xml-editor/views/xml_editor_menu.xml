@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data>
+        <!-- Menu item for XML Editor -->
+        <menuitem id="menu_xml_editor" name="XML Editor" sequence="10" />
+        <menuitem id="menu_xml_editor_main" name="Editor" parent="menu_xml_editor" sequence="1" />
+    </data>
+</odoo>
