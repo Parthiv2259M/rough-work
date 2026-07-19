@@ -3,20 +3,7 @@
     'version': '1.0.0',
     'category': 'Tools',
     'summary': 'Visual XML Editor for all Odoo Web UI Pages',
-    'description': '''
-    Odoo XML Editor
-    ================
-
-    A visual editor for modifying the XML architecture of Odoo views directly
-    from the backend.
-
-    Features:
-
-    - Edit XML structure of views (form, tree, kanban, search, etc.)
-    - Live validation before saving
-    - Reload/discard local changes
-    - Save changes directly back to the target view
-    ''',
+    'description': 'A visual editor for modifying the XML architecture of Odoo views.',
     'author': 'Parthiv2259M',
     'website': 'https://github.com/Parthiv2259M/odoo-xml-editor',
     'license': 'LGPL-3',
