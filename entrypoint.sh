@@ -1,13 +1,11 @@
 #!/bin/bash
 set -e
-
 # Wait for database to be ready
 echo "Waiting for PostgreSQL..."
 while ! nc -z db 5432; do
   sleep 1
 done
 echo "PostgreSQL is ready!"
-
 # Create Odoo config
 cat > /etc/odoo/odoo.conf << EOF
 [options]
@@ -22,7 +20,6 @@ xml_rpc_port = 8069
 log_level = info
 workers = 2
 EOF
-
 # Run Odoo
 echo "Starting Odoo..."
-exec python odoo-bin -c /etc/odoo/odoo.conf
+exec python odoo-bin -c /etc/odoo/odoo.conf "$@"

@@ -1,4 +1,4 @@
-FROM python:3.9-slim-buster
+FROM python:3.9-slim-bullseye
 
 # Install system dependencies
 RUN apt-get update && apt-get install -y \
@@ -12,6 +12,9 @@ RUN apt-get update && apt-get install -y \
     libjpeg-dev \
     libharfbuzz0b \
     libwebp6 \
+    libldap2-dev \
+    libsasl2-dev \
+    netcat-traditional \
     && rm -rf /var/lib/apt/lists/*
 
 # Create odoo user
@@ -27,6 +30,7 @@ WORKDIR /home/odoo/odoo
 # Install Python dependencies
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install "setuptools<81"
 RUN pip install psycopg2-binary
 
 # Copy custom addons
@@ -39,6 +43,8 @@ RUN chmod +x /entrypoint.sh
 
 # Change ownership
 RUN chown -R odoo:odoo /home/odoo
+
+RUN mkdir -p /etc/odoo && chown -R odoo:odoo /etc/odoo
 
 # Expose port
 EXPOSE 8069

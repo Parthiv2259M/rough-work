@@ -1,2 +1,2 @@
 # -*- coding: utf-8 -*-
-# Module models initialization
+from . import xml_editor

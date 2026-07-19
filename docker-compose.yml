@@ -35,7 +35,6 @@ services:
       - odoo_data:/home/odoo/odoo
     ports:
       - "8069:8069"
-    command: python odoo-bin -c /etc/odoo/odoo.conf
     restart: unless-stopped
 
 volumes:

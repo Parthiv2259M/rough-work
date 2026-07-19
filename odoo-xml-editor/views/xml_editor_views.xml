@@ -1,6 +1,49 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
     <data>
-        <!-- XML Editor Views will be defined here -->
+
+        <record id="view_xml_editor_form" model="ir.ui.view">
+            <field name="name">xml.editor.form</field>
+            <field name="model">xml.editor</field>
+            <field name="arch" type="xml">
+                <form string="XML Editor">
+                    <header>
+                        <button name="action_save_to_view" type="object"
+                                string="Save to View" class="btn-primary"/>
+                        <button name="action_load_from_view" type="object"
+                                string="Reload from View" class="btn-secondary"/>
+                    </header>
+                    <sheet>
+                        <group>
+                            <field name="view_id"/>
+                            <field name="view_type"/>
+                            <field name="model_name"/>
+                        </group>
+                        <group>
+                            <field name="xml_content" widget="ace" options="{'mode': 'xml'}"/>
+                        </group>
+                    </sheet>
+                </form>
+            </field>
+        </record>
+
+        <record id="view_xml_editor_tree" model="ir.ui.view">
+            <field name="name">xml.editor.tree</field>
+            <field name="model">xml.editor</field>
+            <field name="arch" type="xml">
+                <tree string="XML Editors">
+                    <field name="name"/>
+                    <field name="view_type"/>
+                    <field name="model_name"/>
+                </tree>
+            </field>
+        </record>
+
+        <record id="action_xml_editor" model="ir.actions.act_window">
+            <field name="name">XML Editor</field>
+            <field name="res_model">xml.editor</field>
+            <field name="view_mode">tree,form</field>
+        </record>
+
     </data>
 </odoo>
