@@ -2,15 +2,12 @@
 <odoo>
     <data>
 
-        <menuitem id="menu_xml_editor_root"
-                  name="XML Editor"
-                  sequence="100"/>
-
         <menuitem id="menu_xml_editor_main"
                   name="XML Editor"
-                  parent="menu_xml_editor_root"
+                  parent="base.menu_administration"
                   action="action_xml_editor"
-                  sequence="10"/>
+                  sequence="50"
+                  groups="base.group_system"/>
 
     </data>
 </odoo>
