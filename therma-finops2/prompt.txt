@@ -1,0 +1,122 @@
+TASK: Replace the binary temperature-threshold offloading trigger in the 
+Therma-FinOps prototype with a full Unified Risk Index (URI) decision engine.
+
+CONTEXT — CURRENT ARCHITECTURE (do not re-discover, this is already known):
+- main.py: entry point, builds task queue of 10 items, creates PerformanceTracker, 
+  calls monitor_and_run() with evaluate_and_offload injected as callback.
+- local_monitor.py: get_cpu_temperature() (simulated thermal curve via THERMAL_DELTAS), 
+  cpu_stress_task(task_id), monitor_and_run(tasks, offload_callback, tracker) — 
+  currently triggers offload purely on `temp >= MAX_TEMP_THRESHOLD`.
+- offload_decision.py: evaluate_and_offload(remaining_tasks, current_temp, tracker) 
+  — currently ALWAYS offloads once called (no real decision logic); reads 
+  CLOUD_COST_PER_HOUR from .env.
+- cloud_executor.py: execute_on_cloud(task_id) — SSH+Docker execution on EC2, 
+  returns wall-clock time.
+- tracker.py: PerformanceTracker — record_execution(), record_error(), 
+  display_report().
+- .env: MAX_TEMP_THRESHOLD, AWS_EC2_IP, AWS_EC2_USER, AWS_SSH_KEY_PATH, 
+  DOCKER_IMAGE_NAME, CLOUD_COST_PER_HOUR.
+
+STEP 1 — VERIFY (confirm before editing):
+Open each file above and confirm the function signatures and control flow match 
+this description. Note any drift (e.g., different parameter names, additional 
+logic already present) before making changes. Report discrepancies first.
+
+STEP 2 — CREATE `uri_engine.py`:
+New module implementing the Unified Risk Index, independent of the other modules 
+so it can be unit tested in isolation:
+
+    def hardware_depreciation(T_j, T_ref, E_a, delta_T, n, C, L0, f_cyc, 
+                               w1, w2, k_D, D_mid) -> float:
+        """Arrhenius steady-state wear + Coffin-Manson cyclic fatigue, 
+        squashed to [0,1] via sigmoid."""
+
+    def cloud_risk(P_spot_history, p_evict, C_penalty, C_migrate, L_reexec, 
+                    lambda_cost, P_ref, C_ref, mu1, mu2, k_R, R_mid, window_W) -> float:
+        """Rolling price volatility + eviction-weighted penalty cost, 
+        squashed to [0,1]."""
+
+    def queue_urgency(queue_depth, q_max, deadline_remaining, task_complexity, 
+                       c_max, nu1, nu2, nu3, epsilon) -> float:
+        """Queue depth + deadline pressure + task complexity, normalized [0,1]."""
+
+    def dynamic_weights(T_j, T_crit, sigma_P, sigma_P_bar, alpha0, alpha_max, 
+                         beta0, beta_max, p_exp, kappa, gamma_min) -> tuple:
+        """Returns (alpha, beta, gamma) on the simplex, escalating alpha near 
+        T_crit and beta with cloud volatility."""
+
+    def compute_uri(D_hw_hat, R_cloud_hat, Q_edge_hat, alpha, beta, gamma) -> float:
+        """URI(t) = alpha*D_hw_hat + beta*R_cloud_hat + gamma*Q_edge_hat"""
+
+    def should_offload(uri_value, uri_threshold) -> bool:
+
+All functions get full docstrings stating units/ranges. Put all numeric constants 
+(E_a, n, C, L0, mu1, mu2, weights, thresholds, T_crit, T_ref) into a new 
+`uri_config.py` or extend `.env` — do not hardcode.
+
+STEP 3 — MODIFY `local_monitor.py`:
+- get_cpu_temperature() stays as-is (still the T_j source).
+- ADD lightweight simulated/mocked sources needed by URI that don't currently 
+  exist in the codebase: a simulated P_spot time series (list or generator, 
+  since there's no live spot-price feed here), a simulated p_evict value, and 
+  queue_depth = len(remaining_tasks) (already derivable).
+  Mock these plausibly (e.g., a small random-walk generator for P_spot) and 
+  clearly comment them as SIMULATED, matching how THERMAL_DELTAS already 
+  simulates temperature.
+- In monitor_and_run(), REPLACE the `if temp >= MAX_TEMP_THRESHOLD` check with:
+  1. Compute D_hw_hat, R_cloud_hat, Q_edge_hat via uri_engine functions using 
+     current state (temp, simulated spot price/eviction, queue depth, task deadline).
+  2. Compute dynamic (alpha, beta, gamma).
+  3. Compute URI(t).
+  4. Call should_offload(uri, URI_THRESHOLD) — if True, proceed exactly as the 
+     old threshold branch did (slice remaining tasks, call offload_callback, break).
+- Keep the old threshold check available behind a config flag 
+  (TRIGGER_MODE = "uri" | "threshold" in .env) so both can be run and compared 
+  for the paper's evaluation section.
+
+STEP 4 — MODIFY `offload_decision.py`:
+- evaluate_and_offload() currently always offloads unconditionally once called — 
+  that's fine to keep AS THE EXECUTION step (since local_monitor now already 
+  gated the call via URI), but rename/comment clearly that the *decision* now 
+  happens upstream via URI, and this function is purely the *execution* pipeline.
+- Log the URI value, its three sub-components, and the dynamic weights that 
+  triggered this offload call (pass them in as parameters from local_monitor.py) 
+  so tracker.py / logs can report WHY the offload happened, not just that it did.
+
+STEP 5 — MODIFY `tracker.py`:
+- Extend record_execution() (or add record_uri_snapshot()) to store per-task: 
+  T_j, D_hw_hat, R_cloud_hat, Q_edge_hat, alpha, beta, gamma, URI, and the 
+  decision (local/cloud).
+- Extend display_report() to print a summary of URI trigger statistics 
+  (e.g., avg URI at trigger time, how many offloads were URI-driven vs. 
+  never triggered vs. threshold-mode for comparison).
+- Do not break the existing local/cloud reporting format — append the new 
+  section below it.
+
+STEP 6 — CONFIG:
+Add all new tunable parameters to `.env` (or new `uri_config.py`, whichever 
+matches existing conventions found in Step 1) with sensible defaults, e.g.:
+URI_THRESHOLD, E_A, COFFIN_MANSON_N, COFFIN_MANSON_C, T_CRIT, T_REF, ALPHA0, 
+ALPHA_MAX, BETA0, BETA_MAX, GAMMA_MIN, MU1, MU2, W1, W2, NU1, NU2, NU3.
+
+STEP 7 — TEST & RUN:
+- Add `test_uri_engine.py` with at least one nominal + one edge case per function 
+  (e.g., T_j == T_crit, empty queue, deadline already passed, zero price history).
+- Run `python main.py` with TRIGGER_MODE=uri and report the resulting 
+  performance report output, including URI trigger frequency vs. what the old 
+  threshold-only mode would have triggered.
+
+CONSTRAINTS:
+- Do not touch cloud_executor.py or setup.txt — the SSH/Docker execution layer 
+  is unrelated to the trigger logic and must keep working unchanged.
+- Do not remove the old threshold logic — keep it as a fallback/comparison mode.
+- Match existing code style (the codebase currently uses plain functions, not 
+  classes, except PerformanceTracker — keep uri_engine.py function-based to match).
+
+REPORT BACK:
+1. Confirmation of Step 1 audit (any drift from the described architecture).
+2. Full diff/list of files created and modified.
+3. Any assumptions made where simulated data (P_spot, p_evict) had to be invented, 
+   since no live feed exists in this prototype.
+4. Test results and one sample run's output comparing TRIGGER_MODE=uri vs 
+   TRIGGER_MODE=threshold.
