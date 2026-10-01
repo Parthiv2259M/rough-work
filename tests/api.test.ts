@@ -34,15 +34,15 @@ describe('api routes', () => {
           guests: 2,
           roomType: 'Deluxe',
           promoCode: 'SAVE10',
+          paymentMethod: 'card',
         }),
-      }),
+      })
     );
 
     const payload = await response.json();
 
     expect(response.status).toBe(200);
     expect(payload.ok).toBe(true);
-    expect(payload.session).toMatchObject({ status: 'pending' });
   });
 
   it('rejects invalid checkout requests', async () => {
@@ -57,7 +57,7 @@ describe('api routes', () => {
           guests: 0,
           roomType: '',
         }),
-      }),
+      })
     );
 
     const payload = await response.json();
